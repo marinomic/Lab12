@@ -454,3 +454,113 @@ class Model:
             weight += e[2]['weight']
         return weight
 # --------------------------------------------------------------------------------------------------------------
+
+# UFO-4-07-A
+     def cammino_ottimo(self):
+        """
+        Un cammino sul grafo costituito da avvistamenti di
+durata sempre crescente (strettamente crescente) che massimizzi un punteggio composto dai seguenti termini:
+• +100 punti per ogni avvistamento nel cammino
+• +200 punti per ogni avvistamento del cammino che è occorso nello stesso mese dell’avvistamento
+precedente (ovviamente non applicabile al primo avvistamento del cammino, dato che non ha un
+avvistamento che lo precede).
+Inoltre, il cammino può contenere al massimo 3 avvistamenti dello stesso mese.
+Nota bene: nel calcolo del cammino un arco può essere percorso solo nella sua direzione, ovvero un arco diretto da
+A verso B non può essere percorso da B ad A.
+        """
+            self._cammino_ottimo = []
+            self._score_ottimo = 0
+            self._occorrenze_mese = dict.fromkeys(range(1, 13), 0)
+
+            for nodo in self._nodes:
+                self._occorrenze_mese[nodo.datetime.month] += 1
+                successivi_durata_crescente = self._calcola_successivi(nodo)
+                self._calcola_cammino_ricorsivo([nodo], successivi_durata_crescente)
+                self._occorrenze_mese[nodo.datetime.month] -= 1
+            return self._cammino_ottimo, self._score_ottimo
+
+        def _calcola_cammino_ricorsivo(self, parziale: list[Sighting], successivi: list[Sighting]):
+            if len(successivi) == 0:
+                score = Model._calcola_score(parziale)
+                if score > self._score_ottimo:
+                    self._score_ottimo = score
+                    self._cammino_ottimo = copy.deepcopy(parziale)
+            else:
+                for nodo in successivi:
+                    # aggiungo il nodo in parziale ed aggiorno le occorrenze del mese corrispondente
+                    parziale.append(nodo)
+                    self._occorrenze_mese[nodo.datetime.month] += 1
+                    # nuovi successivi
+                    nuovi_successivi = self._calcola_successivi(nodo)
+                    # ricorsione
+                    self._calcola_cammino_ricorsivo(parziale, nuovi_successivi)
+                    # backtracking: visto che sto usando un dizionario nella classe per le occorrenze, quando faccio il
+                    # backtracking vado anche a togliere una visita dalle occorrenze del mese corrispondente al nodo che
+                    # vado a sottrarre
+                    self._occorrenze_mese[parziale[-1].datetime.month] -= 1
+                    parziale.pop()
+
+        def _calcola_successivi(self, nodo: Sighting) -> list[Sighting]:
+            """
+            Calcola il sottoinsieme dei successivi ad un nodo che hanno durata superiore a quella del nodo, senza eccedere
+            il numero ammissibile di occorrenze per un dato mese
+            """
+            successivi = self._grafo.successors(nodo)
+            successivi_ammissibili = []
+            for s in successivi:
+                if s.duration > nodo.duration and self._occorrenze_mese[s.datetime.month] < 3:
+                    successivi_ammissibili.append(s)
+            return successivi_ammissibili
+
+    @staticmethod
+    def _calcola_score(cammino: list[Sighting]) -> int:
+        """
+        Funzione che calcola il punteggio di un cammino.
+        :param cammino: il cammino che si vuole valutare.
+        :return: il punteggio
+        """
+        # parte del punteggio legata al numero di tappe
+        score = 100 * len(cammino)
+        # parte del punteggio legata al mese
+        for i in range(1, len(cammino)):
+            if cammino[i].datetime.month == cammino[i - 1].datetime.month:
+                score += 200
+        return score
+
+# --------------------------------------------------------------------------------------------------------------
+
+# UFO-4-07-B
+"""
+Il grafo è un grafo semplice, non-orientato, ed un arco fra due avvistamenti esiste se e solo se tali avvistamenti hanno la
+stessa Forma (colonna “shape” del db) e sono avvenuti ad una distanza inferiore a 100km. Per calcolare la
+distanza in km tra due avvistamenti utilizzare il metodo distance_HV già fornito nella classe Sighting. """
+
+
+def create_graph(self, year: int, state: str):
+    self._grafo.clear()
+    self._nodes = DAO.get_nodes(year, state)
+    self._grafo.add_nodes_from(self._nodes)
+    # calcolo degli edges in modo programmatico
+        for i in range(0, len(self._nodes) - 1):
+            for j in range(i + 1, len(self._nodes)):
+                if self._nodes[i].shape == self._nodes[j].shape and self._nodes[i].distance_HV(self._nodes[j]) < 100:
+                    self._grafo.add_edge(self._nodes[i], self._nodes[j])
+
+# --------------------------------------------------------------------------------------------------------------
+
+# UFO-4-07-C
+
+def create_graph(self, year: int, shape: str):
+    self._grafo.clear()
+    self._nodes = DAO.get_nodes(year, shape)
+    self._grafo.add_nodes_from(self._nodes)
+
+    # calcolo degli edges in modo programmatico
+    for i in range(0, len(self._nodes) - 1):
+        for j in range(i + 1, len(self._nodes)):
+            if self._nodes[i].state == self._nodes[j].state and self._nodes[i].longitude < self._nodes[j].longitude:
+                weight = self._nodes[j].longitude - self._nodes[i].longitude
+                self._grafo.add_edge(self._nodes[i], self._nodes[j], weight=weight)
+            elif self._nodes[i].state == self._nodes[j].state and self._nodes[i].longitude > self._nodes[j].longitude:
+                weight = self._nodes[i].longitude - self._nodes[j].longitude
+                self._grafo.add_edge(self._nodes[j], self._nodes[i], weight=weight)
